@@ -1,0 +1,137 @@
+---
+title: "Assignment10"
+author: "Souleymane Doumbia"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Loading Libraries
+```{r}
+install.packages("janeaustenr")
+install.packages("textdata")
+devtools::install_github("juliasilge/janeaustenr")
+```
+
+```{r}
+library(textdata)
+library(tidytext)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(janeaustenr)  # if working with Jane Austen's novels
+```
+
+##Two others examples of sentiment analysis with Austen Bookks
+
+**Preparing Data**
+```{r}
+tidy_books <- austen_books() %>%
+  dplyr::group_by(book) %>%
+  dplyr::mutate(
+    linenumber = dplyr::row_number(),
+    chapter = cumsum(stringr::str_detect(text, regex("^chapter [\\divxlc]", ignore_case = TRUE)))
+  ) %>%
+  dplyr::ungroup() %>%
+  unnest_tokens(word, text)
+```
+
+1.    **Using bing lexicon**
+
+**Load the bing Lexicon**
+```{r loading bing}
+bing_sentiments <- get_sentiments("bing")
+```
+
+**Tidying and Joining with tidy_books, subsetting to book Emma**
+```{r subsetting}
+tidy_books_bing <- tidy_books %>%
+  filter(book == "Emma") %>%
+  inner_join(get_sentiments("bing"), by = "word")
+
+tidy_books_bing <- tidy_books_bing %>%
+  mutate(
+    chapter = as.numeric(as.character(chapter)),  # converting chapter to numeric if it's not
+    sentiment = as.factor(sentiment)  # ensuring sentiment is a factor
+  )
+
+# Grouping by chapter and sentiment, then counting the frequency
+sentiment_counts_by_chapter <- tidy_books_bing %>%
+  group_by(chapter, sentiment) %>%
+  summarise(count = n(), .groups = 'drop')
+```
+
+**Visualization**
+```{r}
+ggplot(sentiment_counts_by_chapter, aes(x = chapter, y = count, fill = sentiment)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Sentiment Counts in 'Emma' by Chapter", x = "Chapter", y = "Count")
+```
+
+2.    **Using afinn lexicon**
+
+**Tidying and Joining with tidy_books, subsetting to book Emma**
+```{r tidying, susetting and inner-joining}
+afinn_sentiments <- get_sentiments("afinn")
+
+tidy_books_afinn <- tidy_books %>%
+  filter(book == "Emma") %>%
+  inner_join(afinn_sentiments, by = "word")
+```
+
+**Analyzing**
+```{r}
+ sentiment_by_chapter <- tidy_books_afinn %>%
+  group_by(chapter) %>%
+  summarise(sentiment_sum = sum(value, na.rm = TRUE))
+```
+
+**Visualization**
+```{r}
+
+ggplot(sentiment_by_chapter, aes(x = chapter, y = sentiment_sum)) +
+  geom_line() +
+  labs(title = "Sentiment in 'Emma' by Chapter", x = "Chapter", y = "Sum of Sentiment Score")
+
+```
+
+##Another Corpus and a new lexicon
+
+**Loading library and project gutenberg packages**
+```{r installing and loading packages}
+devtools::install_github("ropensci/gutenbergr")
+install.packages("sentimentr")
+
+library(gutenbergr)
+library(sentimentr)
+library(tidytext)
+```
+
+**Working with Moby Dick as corpus**
+```{r focusing on Moby Dick id 2701}
+moby_dick_id <- 2701  #A known ID for Moby Dick
+moby_dick_text <- gutenberg_download(moby_dick_id)
+
+sentences_df <- get_sentences(moby_dick_text$text)
+head(sentences_df)
+```
+
+**Calculating sentiment**
+```{r Calculating sentiment}
+sentiment_results <- sentiment(sentences_df)
+
+sentiment_df <- as.data.frame(sentiment_results)
+
+head(sentiment_df)
+```
+
+**Plotting sentiment**
+```{r Plotting sentiment}
+ggplot(sentiment_df, aes(x = 1:nrow(sentiment_df), y = sentiment)) +
+  geom_line() +
+  labs(title = "Sentiment Trajectory in 'Moby Dick'", x = "Sentence Number", y = "Sentiment Score")
+```
+
